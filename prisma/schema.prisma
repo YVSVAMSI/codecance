@@ -1,0 +1,187 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String   @default("")
+  passwordHash String
+  role         String   @default("USER") // "USER" | "ADMIN"
+  isActive     Boolean  @default(true)
+  emailVerified Boolean  @default(true)
+  otpHash      String?
+  otpExpiresAt DateTime?
+  otpAttempts  Int      @default(0)
+  otpSentAt    DateTime?
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  questions          Question[]
+  attempts           Attempt[]
+  revisions          Revision[]
+  settings           Settings?
+  customTopics       Topic[]    @relation("customTopOwnership")
+  customPatterns     Pattern[]  @relation("customPatOwnership")
+  auditLogsAuditedBy AuditLog[] @relation("auditActor")
+  auditLogsTargeted  AuditLog[] @relation("auditTarget")
+
+  @@index([role])
+  @@index([isActive])
+}
+
+model Topic {
+  id        String     @id
+  name      String
+  isCustom  Boolean    @default(false)
+  createdBy String? // set when a user adds a custom topic; NULL = global curriculum
+  owner     User?      @relation("customTopOwnership", fields: [createdBy], references: [id], onDelete: Cascade)
+  order     Int
+  createdAt DateTime   @default(now())
+  patterns  Pattern[]
+  questions Question[]
+
+  @@index([isCustom, createdBy])
+}
+
+model Pattern {
+  id         String     @id
+  topicId    String
+  topic      Topic      @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  name       String
+  seqCounter Int        @default(0)
+  isCustom   Boolean    @default(false)
+  createdBy  String? // set when a user adds a custom pattern; NULL = global curriculum
+  owner      User?      @relation("customPatOwnership", fields: [createdBy], references: [id], onDelete: Cascade)
+  order      Int
+  createdAt  DateTime   @default(now())
+  questions  Question[]
+
+  @@index([topicId])
+  @@index([isCustom, createdBy])
+}
+
+model Question {
+  id                 String   @id @default(uuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topicId            String
+  topic              Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  patternId          String
+  pattern            Pattern  @relation(fields: [patternId], references: [id], onDelete: Cascade)
+  seq                Int
+  difficulty         String // Easy, Medium, Hard
+  status             String // Solved, Attempted, Bookmarked
+  confidence         String? // Green, Yellow, Red
+  lastSolvedAt       String? // YYYY-MM-DD
+  lastAttemptedAt    String?
+  timeTaken          Int?
+  neededHint         Boolean  @default(false)
+  keyConcept         String?
+  notes              String?
+  problemLink        String?
+  userPatternInput   String? // User's guessed pattern in Pattern Hunt
+  recognitionCorrect Boolean? // Whether pattern guess matched internal pattern
+  isPatternHunt      Boolean  @default(false)
+  revisionCount      Int      @default(0)
+  lastRevisedAt      String?
+  nextRevision       String? // YYYY-MM-DD
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  revisions Revision[]
+  attempts  Attempt[]
+
+  @@index([userId])
+  @@index([patternId])
+  @@index([lastSolvedAt])
+  @@index([nextRevision])
+}
+
+model Attempt {
+  id                 String   @id @default(uuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionId         String
+  question           Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  result             String // Solved, Failed, Attempted
+  timeTaken          Int?
+  hintsUsed          Boolean  @default(false)
+  mistakeType        String? // Conceptual, Implementation, Minor, None
+  userPatternInput   String?
+  recognitionCorrect Boolean?
+  notes              String?
+  attemptedAt        DateTime @default(now())
+
+  @@index([userId])
+  @@index([questionId])
+}
+
+model PatternHuntProblem {
+  id          String   @id @default(uuid())
+  title       String   @unique
+  difficulty  String // Easy, Medium, Hard
+  topicName   String // Internal topic mapping
+  patternName String // Internal pattern mapping (hidden from user)
+  problemLink String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([topicName, patternName])
+}
+
+model Revision {
+  id                   String   @id @default(uuid())
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionId           String
+  question             Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  revisionNumber       Int
+  scheduledRevisionDate String? // YYYY-MM-DD
+  actualRevisionDate   String   // YYYY-MM-DD
+  confidence           String // Green, Yellow, Red
+  result               String // Solved, Struggled
+  previousIntervalDays Int?
+  nextIntervalDays     Int
+  createdAt            DateTime @default(now())
+
+  @@index([userId])
+  @@index([questionId])
+  @@index([actualRevisionDate])
+}
+
+model Settings {
+  id                  String @id @default(uuid())
+  userId              String @unique
+  user                User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  greenIntervals      String // "7,14,30,60"
+  yellowIntervals     String // "3,7,14,30"
+  redIntervals        String // "1,3,7,14"
+  growthFactor        Float  @default(1.6)
+  masteryMinQuestions Int    @default(3)
+  masteryGreenPct     Float  @default(0.7)
+  comfortableGreenPct Float  @default(0.5)
+  weakYellowPct       Float  @default(0.4)
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  actorId      String
+  actor        User     @relation("auditActor", fields: [actorId], references: [id], onDelete: Cascade)
+  action       String // e.g. "ADMIN.USER_LIST", "ADMIN.USER_DISABLE", "ADMIN.USER_DELETE", "ADMIN.ROLE_CHANGE", "AUTH.LOGIN"
+  targetUserId String?
+  targetUser   User?    @relation("auditTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+  ip           String?
+  metadata     String? // JSON string with non-sensitive details
+  createdAt    DateTime @default(now())
+
+  @@index([actorId])
+  @@index([targetUserId])
+  @@index([action])
+}
