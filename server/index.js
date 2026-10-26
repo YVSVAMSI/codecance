@@ -75,7 +75,7 @@ app.use((err, req, res, next) => {
 });
 
 const startServer = (portToTry) => {
-  const server = app.listen(portToTry, async () => {
+  const server = app.listen(portToTry, '0.0.0.0', async () => {
     try {
       await ensureGlobalContent(prisma);
     } catch (e) {
