@@ -6,8 +6,8 @@ dist/
 
 # Environment / secrets — NEVER commit these
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # Local database artifacts
 prisma/dev.db
@@ -20,6 +20,4 @@ prisma/dev.db-journal
 npm-debug.log*
 
 # OS
-.env.production
-.env.development
 .DS_Store
