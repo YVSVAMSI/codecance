@@ -1,5 +1,7 @@
 # CodeCance — DSA Pattern Tracker
 
+![CI](https://github.com/YVSVAMSI/codecance/actions/workflows/ci.yml/badge.svg)
+
 A full-stack spaced-repetition tracker for mastering Data Structures & Algorithms. It combines a complete A2Z DSA roadmap, a 500+ problem "Pattern Hunt" with semantic pattern-recognition feedback, and a configurable revision engine that schedules when each question should be revisited.
 
 > **Production:** see [PRODUCTION.md](./PRODUCTION.md) for deployment, env vars, DB migration, backups, and the security/launch checklists.
